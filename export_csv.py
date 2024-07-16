@@ -1,32 +1,33 @@
-import pandas as pd
+# export_csv.py
+import csv
+from database import Database
 
-def export_to_csv(timetable, db):
-    for class_id, schedule in timetable.items():
-        class_info = db.get_class_info(class_id)
-        file_name = f'{class_info[0]}_{class_info[1]}.csv'
-        
-        # Prepare timetable data
-        data = {day: [] for day in ["Time Slot"] + list(schedule.keys())}
-        for time_slot in schedule[list(schedule.keys())[0]].keys():
-            row = [time_slot]
-            for day in schedule.keys():
-                subject_info = schedule[day][time_slot]
-                if subject_info is not None:
-                    row.append(subject_info[0])  # Use subject name instead of code
-                else:
-                    row.append('')
-            for i, key in enumerate(data.keys()):
-                data[key].append(row[i])
-        
-        df_timetable = pd.DataFrame(data)
-        
-        # Prepare subjects-teachers data
-        subjects_teachers = db.get_subjects_with_teacher_names(class_id)
-        df_subjects_teachers = pd.DataFrame(subjects_teachers, columns=["Subject Name", "Teacher Name"])
-        
-        # Export to CSV
-        with open(file_name, 'w', newline='') as f:
-            df_timetable.to_csv(f, index=False)
-            f.write("\n")
-            df_subjects_teachers.to_csv(f, index=False)
+def export_to_csv(timetable):
+    db = Database()
+    classes = db.get_classes()
 
+    time_slots = ["10:00-10:50", "10:50-11:40", "11:40-12:30", "12:30-13:20"]
+
+    for cls in classes:
+        class_id = cls[0]
+        branch_name = cls[1]
+        semester = cls[2]
+        filename = f"{branch_name}_{semester}.csv"
+
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['Timeslot', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
+
+            for idx, timeslot in enumerate(time_slots):
+                row = [timeslot] + [timetable[class_id][day][idx] for day in range(6)]
+                writer.writerow(row)
+
+            writer.writerow([])
+            writer.writerow(['Subject Name', 'Teacher Name'])
+
+            subjects = db.get_subjects_by_class_id(class_id)
+            for subject in subjects:
+                teacher = db.get_teacher(subject[2])
+                writer.writerow([subject[0], teacher[1]])
+
+    print(f"Timetable exported to CSV files for each class.")

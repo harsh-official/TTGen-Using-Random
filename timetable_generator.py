@@ -1,32 +1,45 @@
+# timetable_generator.py
+from database import Database
 import random
 
 class TimetableGenerator:
     def __init__(self, db):
         self.db = db
-        self.time_slots = ["10:00-10:50", "10:50-11:40", "11:40-12:30", "12:30-13:20"]
-        self.days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
     def generate(self):
+        classes = self.db.get_classes()
+        teachers = self.db.get_teachers()
         subjects = self.db.get_subjects()
-        timetable = {class_id: {day: {slot: None for slot in self.time_slots} for day in self.days} for class_id in self.db.get_class_ids()}
-        
+
+        # Initialize an empty timetable
+        timetable = {cls[0]: {day: [''] * 4 for day in range(6)} for cls in classes}
+
+        # Helper dictionary to track teacher's timetable to avoid consecutive lectures
+        teacher_timetable = {teacher[0]: {day: [''] * 4 for day in range(6)} for teacher in teachers}
+
+        # Place subjects in the timetable
         for subject in subjects:
-            subject_name, subject_code, teacher_id, class_id, lectures_per_week = subject
-            slots_assigned = 0
-            while slots_assigned < lectures_per_week:
-                day = random.choice(self.days)
-                time_slot = random.choice(self.time_slots)
-                if self.is_slot_available(timetable, class_id, teacher_id, day, time_slot):
-                    timetable[class_id][day][time_slot] = (subject_name, subject_code)
-                    slots_assigned += 1
+            class_id = subject[3]
+            teacher_id = subject[2]
+            subject_name = subject[0]  # Use subject name instead of subject code
+            lectures_per_week = int(subject[4])
+
+            placed_lectures = 0
+            daily_lectures = {day: 0 for day in range(6)}
+
+            while placed_lectures < lectures_per_week:
+                day = random.randint(0, 5)
+                slot = random.randint(0, 3)
+                
+                if lectures_per_week <= 6 and daily_lectures[day] > 0:
+                    continue
+
+                if timetable[class_id][day][slot] == '' and teacher_timetable[teacher_id][day][slot] == '':
+                    # Check if the teacher has consecutive lectures
+                    if slot == 0 or (teacher_timetable[teacher_id][day][slot-1] == '' and (slot == 3 or teacher_timetable[teacher_id][day][slot+1] == '')):
+                        timetable[class_id][day][slot] = subject_name
+                        teacher_timetable[teacher_id][day][slot] = subject_name
+                        placed_lectures += 1
+                        daily_lectures[day] += 1
+
         return timetable
-
-    def is_slot_available(self, timetable, class_id, teacher_id, day, time_slot):
-        if timetable[class_id][day][time_slot] is not None:
-            return False
-        
-        for day in self.days:
-            if timetable[class_id][day][time_slot] == teacher_id:
-                return False
-
-        return True
